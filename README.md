@@ -10,6 +10,7 @@
 # Building a new image with Colorama
 
 ### Build new image:
+This has to be built inside the openwhisk-runtime-python folder.
 `./tutorials/local_build.sh -r python311Action -t action-python-colorama`
 
 
@@ -27,6 +28,7 @@
 
 # Create a new image with Opencv
 ### Build new image:
+This has to be built inside the openwhisk-runtime-python folder.
 `./tutorials/local_build.sh -r python311Action -t action-python-opencv`
 ### New action create:
 `wsk action create test-opencv test_opencv.py --docker hibenji/action-python-opencv`
