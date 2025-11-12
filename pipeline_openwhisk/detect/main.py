@@ -5,7 +5,7 @@ from botocore.config import Config
 import onnxruntime as ort
 import requests
 
-MODEL_PATH = os.environ.get("MODEL_PATH", "/tmp/yolov5s.onnx")
+MODEL_PATH = os.environ.get("MODEL_PATH", "/app/yolov5s.onnx")
 MODEL_URL = os.environ.get("MODEL_URL", "https://github.com/ultralytics/yolov5/releases/download/v6.0/yolov5s.onnx")
 
 _session = None
@@ -17,12 +17,15 @@ def ensure_model():
     if _session is not None:
         return
     if not os.path.exists(MODEL_PATH):
+        print(f"Model not found at {MODEL_PATH}, downloading from {MODEL_URL}...")
         r = requests.get(MODEL_URL, stream=True, timeout=60)
         r.raise_for_status()
         with open(MODEL_PATH, "wb") as f:
             for chunk in r.iter_content(8192):
                 if chunk:
                     f.write(chunk)
+    else:
+        print(f"Model found at {MODEL_PATH}, skipping download.")
     _session = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
     _input_name = _session.get_inputs()[0].name
     _output_names = [o.name for o in _session.get_outputs()]
