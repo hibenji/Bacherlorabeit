@@ -35,7 +35,7 @@ do
 done
 
 # Print helperInstructions in case parameters are empty
-if [ -z "$runtimeParameter" ] || [ -z "$dockerImageTag" ] || ( [[ "$runtimeParameter" != "python39Action" ]] && [[ "$runtimeParameter" != "python310Action" ]] && [[ "$runtimeParameter" != "python311Action" ]] )
+if [ -z "$runtimeParameter" ] || [ -z "$dockerImageTag" ] || ( [[ "$runtimeParameter" != "python39Action" ]] && [[ "$runtimeParameter" != "python310Action" ]] && [[ "$runtimeParameter" != "python311Action" ]] && [[ "$runtimeParameter" != "python312Action" ]] )
  then
    echo "Runtime parameter is empty or not supported";
    helperInstructions
@@ -72,4 +72,14 @@ elif [[ "$runtimeParameter" == "python311Action" ]]
     rm $(pwd)/core/python311Action/requirements_common.txt
     rm -r $(pwd)/core/python311Action/bin
     rm -r $(pwd)/core/python311Action/lib
+elif [[ "$runtimeParameter" == "python312Action" ]]
+  then
+    echo "Building docker for python312Action."
+    cp $(pwd)/core/requirements_common.txt $(pwd)/core/python312Action/requirements_common.txt
+    cp -r $(pwd)/core/python3Action/bin $(pwd)/core/python312Action
+    cp -r $(pwd)/core/python3Action/lib $(pwd)/core/python312Action/lib
+    docker build -t "$dockerImageTag" $(pwd)/core/python312Action
+    rm $(pwd)/core/python312Action/requirements_common.txt
+    rm -r $(pwd)/core/python312Action/bin
+    rm -r $(pwd)/core/python312Action/lib
 fi
