@@ -3,6 +3,16 @@ import numpy as np
 import os
 import sys
 
+# 1. Den absoluten Pfad zum 'src' Ordner finden
+# Wir gehen vom aktuellen Datei-Pfad (benchmark_local.py) einen Ordner hoch (..) und dann in 'src'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.join(current_dir, '../../pipeline_without')
+metrics_dir = os.path.join(current_dir, '../')
+
+# 2. Den Pfad zu Python hinzufügen
+sys.path.append(src_dir)
+sys.path.append(metrics_dir)
+
 # Importiere deine Module direkt
 import resize as resize_mod      #
 import detect as detect_mod      #
@@ -10,7 +20,7 @@ import postprocess as post_mod   #
 from metrics import PerformanceMonitor, print_stats
 
 # Konfiguration
-IMAGE_PATH = "test.jpg"  # Pfad anpassen!
+IMAGE_PATH = current_dir + "/../test.jpg"  # Lokaler Pfad zum Testbild
 ITERATIONS = 30
 
 def run_pipeline(img):

@@ -2,7 +2,10 @@ import numpy as np
 import onnxruntime as ort
 import os, requests
 
-MODEL_PATH = os.getenv("MODEL_PATH", "./yolov5s.onnx")
+# get current directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(current_dir, "yolov5s.onnx")
+MODEL_PATH = os.getenv("MODEL_PATH", model_path)
 MODEL_URL = "https://github.com/ultralytics/yolov5/releases/download/v6.0/yolov5s.onnx"
 
 # Ensure model file exists
