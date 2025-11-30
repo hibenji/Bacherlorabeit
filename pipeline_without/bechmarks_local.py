@@ -1,0 +1,66 @@
+import cv2
+import numpy as np
+import os
+import sys
+
+# Importiere deine Module direkt
+import resize as resize_mod      #
+import detect as detect_mod      #
+import postprocess as post_mod   #
+from metrics import PerformanceMonitor, print_stats
+
+# Konfiguration
+IMAGE_PATH = "test.jpg"  # Pfad anpassen!
+ITERATIONS = 30
+
+def run_pipeline(img):
+    # 1. Resize
+    h, w, blob = resize_mod.preprocess_image(img)
+    
+    # 2. Detect
+    # Wir nutzen die session, die beim Import von detect.py erstellt wurde
+    input_name = detect_mod.input_name
+    output_names = detect_mod.output_names
+    outputs = detect_mod.session.run(output_names, {input_name: blob})
+    detections = outputs[0]
+    
+    # 3. Postprocess
+    # Achtung: Postprocess modifiziert das Bild für Boxen, 
+    # daher hier kopieren, um Caching-Effekte zu vermeiden
+    img_copy = img.copy() 
+    results = post_mod.postprocess(img_copy, h, w, detections)
+    return results
+
+def main():
+    if not os.path.exists(IMAGE_PATH):
+        print(f"Fehler: Bild {IMAGE_PATH} nicht gefunden.")
+        return
+
+    # Bild einmal laden (IO nicht messen)
+    original_img = cv2.imread(IMAGE_PATH)
+    
+    latencies = []
+    cpu_times = []
+    memories = []
+
+    print(f"Starte lokale Benchmark ({ITERATIONS} Durchläufe)...")
+
+    # Warmup (damit ONNX Session warm ist)
+    print("Warming up...")
+    run_pipeline(original_img)
+
+    for i in range(ITERATIONS):
+        with PerformanceMonitor() as mon:
+            _ = run_pipeline(original_img)
+        
+        latencies.append(mon.get_duration())
+        cpu_times.append(mon.get_cpu_time())
+        memories.append(mon.get_memory())
+        
+        print(f"Run {i+1}: {mon.get_duration():.2f}ms")
+        print(f"Memory Usage: {mon.get_memory():.2f}MB")
+
+    print_stats(latencies, cpu_times, memories)
+
+if __name__ == "__main__":
+    main()

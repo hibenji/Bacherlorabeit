@@ -3,3 +3,4 @@ pipeline_without/blob.npy
 pipeline_without/meta.json
 pipeline_without/raw_outputs.npy
 pipeline_without/raw.npy
+__pycache__/
