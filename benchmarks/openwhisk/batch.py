@@ -17,7 +17,7 @@ from metrics import print_stats
 # Konfiguration
 ACTION_NAME = "yolo-seq"
 IMAGE_KEY = "input/test.jpg"  # Pfad im MinIO Bucket, nicht lokal!
-BATCH_SIZE = 25
+BATCH_SIZE = 3
 ITERATIONS = 10
 SIZE = "640"
 
@@ -87,9 +87,6 @@ def main():
     latencies = []
     batch_latencies = []
 
-    # Warmup
-    print("Warming up...")
-    invoke_openwhisk()
 
     for i in range(ITERATIONS):
         print(f"\n=== Batch {i+1}/{ITERATIONS} ===")
