@@ -1,4 +1,5 @@
 /pipeline_without/venv
+/pipeline_localminio/venv
 pipeline_without/blob.npy
 pipeline_without/meta.json
 pipeline_without/raw_outputs.npy
