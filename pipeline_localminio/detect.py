@@ -2,10 +2,13 @@ import numpy as np
 import onnxruntime as ort
 import os, requests
 import io
+import json
 import boto3
 from botocore.config import Config
+from dotenv import load_dotenv
 
 # get current directory
+load_dotenv()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(current_dir, "yolov5s.onnx")
 MODEL_PATH = os.getenv("MODEL_PATH", model_path)
@@ -27,9 +30,9 @@ input_name = session.get_inputs()[0].name
 output_names = [o.name for o in session.get_outputs()]
 
 def s3_client_from_env():
-    endpoint = os.environ.get("MINIO_ENDPOINT", "http://192.168.49.1:9000")
-    access = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
-    secret = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
+    endpoint = os.environ.get("MINIO_ENDPOINT")
+    access = os.environ.get("MINIO_ACCESS_KEY")
+    secret = os.environ.get("MINIO_SECRET_KEY")
     region = os.environ.get("AWS_REGION", "us-east-1")
     return boto3.client(
         "s3",
@@ -50,29 +53,40 @@ def s3_put_bytes(s3, bucket, key, data, content_type=None):
         extra["ContentType"] = content_type
     s3.put_object(Bucket=bucket, Key=key, Body=data, **extra)
 
-if __name__ == "__main__":
-    import argparse
+if __name__ == "__main__":   
+    image_key = "input/test.jpg"
+    bucket = "imgreco"
+    size = 640
+    prefix = "tmp"
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--bucket", default="imgreco", help="MinIO bucket name")
-    parser.add_argument("--blob_key", required=True, help="MinIO key for blob")
-    parser.add_argument("--prefix", required=True, help="Output prefix in MinIO")
-    args = parser.parse_args()
+    # Compute keys produced by resize.py
+    blob_key = f"{prefix}/blob.npy"
+    meta_key = f"{prefix}/meta.json"
 
-    # Download blob from MinIO
+    # Download blob and meta from MinIO
     s3 = s3_client_from_env()
-    blob_bytes = s3_get_bytes(s3, args.bucket, args.blob_key)
+    blob_bytes = s3_get_bytes(s3, bucket, blob_key)
+    meta_bytes = s3_get_bytes(s3, bucket, meta_key)
+    try:
+        meta = json.loads(meta_bytes.decode("utf-8"))
+    except Exception:
+        meta = {}
+
+    # Load numpy blob and ensure dtype
     blob = np.load(io.BytesIO(blob_bytes), allow_pickle=False)
-    
+    if blob.dtype != np.float32:
+        blob = blob.astype(np.float32)
+
     # Run inference
     outputs = session.run(output_names, {input_name: blob})
     raw = outputs[0]
-    
+
     # Upload raw outputs to MinIO
-    raw_key = f"{args.prefix}/raw_outputs.npy"
+    raw_key = f"{prefix}/raw_outputs.npy"
     buf = io.BytesIO()
     np.save(buf, raw)
-    s3_put_bytes(s3, args.bucket, raw_key, buf.getvalue(), content_type="application/octet-stream")
+    s3_put_bytes(s3, bucket, raw_key, buf.getvalue(), content_type="application/octet-stream")
 
-    print(f"Downloaded blob from s3://{args.bucket}/{args.blob_key}")
-    print(f"Uploaded raw detections to s3://{args.bucket}/{raw_key}")
+    print(f"Downloaded blob from s3://{bucket}/{blob_key}")
+    print(f"Downloaded meta from s3://{bucket}/{meta_key}")
+    print(f"Uploaded raw detections to s3://{bucket}/{raw_key}")

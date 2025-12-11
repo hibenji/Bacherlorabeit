@@ -5,11 +5,14 @@ import os
 import io
 import boto3
 from botocore.config import Config
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def s3_client_from_env():
-    endpoint = os.environ.get("MINIO_ENDPOINT", "http://192.168.49.1:9000")
-    access = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
-    secret = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
+    endpoint = os.environ.get("MINIO_ENDPOINT")
+    access = os.environ.get("MINIO_ACCESS_KEY")
+    secret = os.environ.get("MINIO_SECRET_KEY")
     region = os.environ.get("AWS_REGION", "us-east-1")
     return boto3.client(
         "s3",
@@ -42,23 +45,38 @@ def postprocess(img, img_h, img_w, detections, conf_threshold=0.25, iou_threshol
     if len(detections.shape) == 3:
         detections = detections[0]
 
-    boxes, scores, class_ids = [], [], []
+    boxes_xyxy, boxes_xywh, scores, class_ids = [], [], [], []
     for det in detections:
         conf = float(det[4])
         if conf > conf_threshold:
             scores_cls = det[5:]
+            if scores_cls.size == 0:
+                continue
             class_id = int(np.argmax(scores_cls))
             score = float(scores_cls[class_id]) * conf
             if score > conf_threshold:
                 x, y, w, h = det[0:4]
                 x1, y1, x2, y2 = scale_boxes(x, y, w, h, img_w, img_h)
-                boxes.append([x1, y1, x2, y2])
-                scores.append(score)
+                boxes_xyxy.append([int(x1), int(y1), int(x2), int(y2)])
+                boxes_xywh.append([int(x1), int(y1), int(x2) - int(x1), int(y2) - int(y1)])
+                scores.append(float(score))
                 class_ids.append(class_id)
 
-    indices = cv2.dnn.NMSBoxes(boxes, scores, conf_threshold, iou_threshold)
-    for i in indices.flatten():
-        x1, y1, x2, y2 = boxes[i]
+    if len(boxes_xywh) == 0:
+        return results
+
+    indices = cv2.dnn.NMSBoxes(boxes_xywh, scores, conf_threshold, iou_threshold)
+    if indices is None or len(indices) == 0:
+        return results
+
+    try:
+        iter_indices = indices.flatten()
+    except Exception:
+        iter_indices = [i[0] if isinstance(i, (list, tuple, np.ndarray)) else int(i) for i in indices]
+
+    for i in iter_indices:
+        i = int(i)
+        x1, y1, x2, y2 = boxes_xyxy[i]
         class_id = class_ids[i]
         score = scores[i]
         results.append({"class_id": class_id, "score": score, "box": [x1, y1, x2, y2]})
@@ -66,32 +84,42 @@ def postprocess(img, img_h, img_w, detections, conf_threshold=0.25, iou_threshol
     return results
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--bucket", default="imgreco", help="MinIO bucket name")
-    parser.add_argument("--raw_key", required=True, help="MinIO key for raw outputs")
-    parser.add_argument("--meta_key", required=True, help="MinIO key for metadata")
-    parser.add_argument("--prefix", required=True, help="Output prefix in MinIO")
-    parser.add_argument("--out_name", default="result.jpg", help="Output image filename")
-    args = parser.parse_args()
+    # Defaults (match other scripts)
+    image_key = "input/test.jpg"
+    bucket = "imgreco"
+    prefix = "tmp"
+    raw_key = f"{prefix}/raw_outputs.npy"
+    meta_key = f"{prefix}/meta.json"
+    out_name = "result.jpg"
 
     # Download from MinIO
     s3 = s3_client_from_env()
-    
+
     # Load metadata
-    meta_bytes = s3_get_bytes(s3, args.bucket, args.meta_key)
+    meta_bytes = s3_get_bytes(s3, bucket, meta_key)
     meta = json.loads(meta_bytes.decode("utf-8"))
-    img_h, img_w = meta["img_h"], meta["img_w"]
-    image_path = meta["image_path"]
-    
-    # Load original image (from local filesystem for now)
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Could not load image: {image_path}")
-    
+    img_h, img_w = meta.get("img_h"), meta.get("img_w")
+
+    # Determine image key/path from meta (support different key names)
+    image_key_from_meta = meta.get("imageKey") or meta.get("image_key") or meta.get("imagePath") or meta.get("image_path")
+    if image_key_from_meta:
+        image_key = image_key_from_meta
+
+    # Load original image from S3/MinIO
+    try:
+        img_bytes = s3_get_bytes(s3, bucket, image_key)
+        img_array = np.frombuffer(img_bytes, dtype=np.uint8)
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError(f"Could not decode image from s3://{bucket}/{image_key}")
+    except Exception:
+        # Fallback: try local path if image_key looks like a local path
+        img = cv2.imread(image_key)
+        if img is None:
+            raise
+
     # Load raw detections
-    raw_bytes = s3_get_bytes(s3, args.bucket, args.raw_key)
+    raw_bytes = s3_get_bytes(s3, bucket, raw_key)
     detections = np.load(io.BytesIO(raw_bytes), allow_pickle=False)
 
     results = postprocess(img, img_h, img_w, detections)
@@ -109,8 +137,8 @@ if __name__ == "__main__":
     if not ok:
         raise ValueError("Failed to encode annotated image.")
     
-    result_key = f"{args.prefix}/{args.out_name}"
-    s3_put_bytes(s3, args.bucket, result_key, jpg.tobytes(), content_type="image/jpeg")
+    result_key = f"{prefix}/{out_name}"
+    s3_put_bytes(s3, bucket, result_key, jpg.tobytes(), content_type="image/jpeg")
     
     print("Final results:", results)
-    print(f"Uploaded image with detections to s3://{args.bucket}/{result_key}")
+    print(f"Uploaded image with detections to s3://{bucket}/{result_key}")
