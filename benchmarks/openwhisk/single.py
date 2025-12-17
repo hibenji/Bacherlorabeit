@@ -3,6 +3,7 @@ import json
 import time
 import os
 import sys
+from datetime import datetime
 
 # 1. Den absoluten Pfad zum 'metrics' Ordner finden
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,8 +15,9 @@ from metrics import PerformanceMonitor, print_stats
 
 # Konfiguration
 ACTION_NAME = "yolo-seq"
-IMAGE_KEY = "input/test.jpg"  # Pfad im MinIO Bucket, nicht lokal!
+IMAGE_KEY = "input/test.jpg"
 SIZE = "640"
+RESULTS_FILE = current_dir + "/results.json"
 
 
 def invoke_openwhisk(action_name=ACTION_NAME, image_key=IMAGE_KEY, size=SIZE):
@@ -38,7 +40,6 @@ def invoke_openwhisk(action_name=ACTION_NAME, image_key=IMAGE_KEY, size=SIZE):
 
         client_latency = (end - start) * 1000
 
-        # Try parse JSON result, otherwise return raw stdout
         try:
             parsed = json.loads(result.stdout)
         except Exception:
@@ -51,25 +52,55 @@ def invoke_openwhisk(action_name=ACTION_NAME, image_key=IMAGE_KEY, size=SIZE):
         return None, None
 
 
+def save_results(latency, cpu_time, memory, detections_count):
+    """Save results to JSON file, appending to existing results."""
+    result = {
+        "timestamp": datetime.now().isoformat(),
+        "benchmark_type": "openwhisk",
+        "latency_ms": latency,
+        "cpu_time_ms": cpu_time,
+        "memory_mb": memory,
+        "detections_count": detections_count
+    }
+    
+    if os.path.exists(RESULTS_FILE):
+        with open(RESULTS_FILE, 'r') as f:
+            results = json.load(f)
+    else:
+        results = []
+    
+    results.append(result)
+    
+    with open(RESULTS_FILE, 'w') as f:
+        json.dump(results, f, indent=2)
+    
+    print(f"Results saved to {RESULTS_FILE}")
+
+
 def main():
     print(f"Starte OpenWhisk Benchmark (1 Durchlauf)...")
     print("Stelle sicher, dass MinIO und OpenWhisk laufen!")
-
-    latencies = []
-    cpu_times = []
-    memories = []
 
     with PerformanceMonitor() as mon:
         duration, result = invoke_openwhisk()
 
     if duration:
-        latencies.append(mon.get_duration())
-        cpu_times.append(mon.get_cpu_time())
-        memories.append(mon.get_memory())
+        latency = mon.get_duration()
+        cpu_time = mon.get_cpu_time()
+        memory = mon.get_memory()
+        
+        # Try to get detections count from result
+        detections_count = 0
+        if isinstance(result, dict) and "results" in result:
+            detections_count = len(result.get("results", []))
+        elif isinstance(result, list):
+            detections_count = len(result)
 
         print(f"Run : {duration:.2f}ms (Round-Trip-Time)")
-        print(f"Memory Usage: {mon.get_memory():.2f}MB")
-        print(f"CPU Time: {mon.get_cpu_time():.2f}ms")
+        print(f"Memory Usage: {memory:.2f}MB")
+        print(f"CPU Time: {cpu_time:.2f}ms")
+        
+        save_results(latency, cpu_time, memory, detections_count)
     else:
         print("Run : FAILED")
 
