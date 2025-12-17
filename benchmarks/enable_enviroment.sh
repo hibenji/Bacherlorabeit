@@ -1,1 +1,0 @@
-source ../pipeline_without/venv/bin/activate
