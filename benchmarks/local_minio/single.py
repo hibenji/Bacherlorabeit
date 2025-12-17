@@ -16,7 +16,7 @@ from metrics import PerformanceMonitor, print_stats
 RESIZE_SCRIPT = os.path.join(pipeline_dir, 'resize.py')
 DETECT_SCRIPT = os.path.join(pipeline_dir, 'detect.py')
 POSTPROCESS_SCRIPT = os.path.join(pipeline_dir, 'postprocess.py')
-RESULTS_FILE = current_dir + "/results.json"
+RESULTS_FILE = current_dir + "/results_single.json"
 
 def run_pipeline():
     """

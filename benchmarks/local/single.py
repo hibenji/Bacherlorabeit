@@ -22,7 +22,7 @@ from metrics import PerformanceMonitor, print_stats
 
 # Konfiguration
 IMAGE_PATH = current_dir + "/../test.jpg"
-RESULTS_FILE = current_dir + "/results.json"
+RESULTS_FILE = current_dir + "/results_single.json"
 
 def run_pipeline(img):
     # 1. Resize

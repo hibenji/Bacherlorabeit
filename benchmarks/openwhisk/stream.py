@@ -4,26 +4,21 @@ import time
 import statistics
 import os
 import sys
+from datetime import datetime
 
-# 1. Den absoluten Pfad zum 'src' Ordner finden
-# Wir gehen vom aktuellen Datei-Pfad (benchmark_local.py) einen Ordner hoch (..) und dann in 'src'
 current_dir = os.path.dirname(os.path.abspath(__file__))
 metrics_dir = os.path.join(current_dir, '../')
-
 sys.path.append(metrics_dir)
-
 from metrics import print_stats
 
 # Konfiguration
 ACTION_NAME = "yolo-seq"
-IMAGE_KEY = "input/test.jpg" # Pfad im MinIO Bucket, nicht lokal!
+IMAGE_KEY = "input/test.jpg"
 ITERATIONS = 30
+RESULTS_FILE = current_dir + "/results_stream.json"
 
 def invoke_openwhisk():
     start = time.time()
-    
-    # Aufruf via CLI (blocking mit --result)
-    #
     cmd = [
         "wsk", "action", "invoke", ACTION_NAME,
         "--result",
@@ -36,28 +31,42 @@ def invoke_openwhisk():
         end = time.time()
         
         if result.returncode != 0:
-            print("Error invoking action:", result.stderr)
             return None, None
 
-        # Wir haben jetzt das JSON Resultat der Action
-        # Um aber an die "annotations" (initTime etc.) zu kommen,
-        # bräuchten wir die Activation ID. 
-        # Da wir --result nutzen, kriegen wir nur den Output.
-        
-        # Strategie: Client-Side Latency messen wir hier (end - start)
         client_latency = (end - start) * 1000
-        
         return client_latency, json.loads(result.stdout)
         
     except Exception as e:
         print(f"Exception: {e}")
         return None, None
 
+def save_results(latencies):
+    result = {
+        "timestamp": datetime.now().isoformat(),
+        "benchmark_type": "openwhisk",
+        "test_type": "stream",
+        "iterations": len(latencies),
+        "latency_avg_ms": statistics.mean(latencies),
+        "latency_std_ms": statistics.stdev(latencies) if len(latencies) > 1 else 0,
+    }
+    
+    if os.path.exists(RESULTS_FILE):
+        with open(RESULTS_FILE, 'r') as f:
+            results = json.load(f)
+    else:
+        results = []
+    
+    results.append(result)
+    
+    with open(RESULTS_FILE, 'w') as f:
+        json.dump(results, f, indent=2)
+    
+    print(f"Results saved to {RESULTS_FILE}")
+
 def main():
     latencies = []
     
-    print(f"Starte OpenWhisk Benchmark ({ITERATIONS} Durchläufe)...")
-    print("Stelle sicher, dass MinIO und OpenWhisk laufen!")
+    print(f"Starte OpenWhisk Stream Benchmark ({ITERATIONS} Durchläufe)...")
 
     for i in range(ITERATIONS):
         duration, result = invoke_openwhisk()
@@ -68,9 +77,8 @@ def main():
         else:
             print(f"Run {i+1}: FAILED")
 
-    # OpenWhisk spezifische Ausgabe (nur Zeit, Memory ist hier schwer client-seitig zu messen)
     print_stats(latencies)
-    print("Hinweis: Dies ist die Round-Trip-Time (Latenz) vom Client aus.")
+    save_results(latencies)
 
 if __name__ == "__main__":
     main()

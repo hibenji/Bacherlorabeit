@@ -17,7 +17,7 @@ from metrics import PerformanceMonitor, print_stats
 ACTION_NAME = "yolo-seq"
 IMAGE_KEY = "input/test.jpg"
 SIZE = "640"
-RESULTS_FILE = current_dir + "/results.json"
+RESULTS_FILE = current_dir + "/results_single.json"
 
 
 def invoke_openwhisk(action_name=ACTION_NAME, image_key=IMAGE_KEY, size=SIZE):
