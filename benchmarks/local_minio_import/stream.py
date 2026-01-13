@@ -36,9 +36,9 @@ def run_pipeline_with_minio(s3):
     meta_key = f"{PREFIX}/meta.json"
     np_bytes = io.BytesIO()
     np.save(np_bytes, blob)
-    resize_mod.s3_put_bytes(s3, BUCKET, blob_key, np_bytes.getvalue())
+    resize_mod.s3_put_bytes(s3, BUCKET, blob_key, np_bytes.getvalue(), content_type="application/octet-stream")
     meta = {"img_h": img_h, "img_w": img_w, "imageKey": IMAGE_KEY}
-    resize_mod.s3_put_bytes(s3, BUCKET, meta_key, json.dumps(meta).encode("utf-8"))
+    resize_mod.s3_put_bytes(s3, BUCKET, meta_key, json.dumps(meta).encode("utf-8"), content_type="application/json")
     
     # DETECT
     blob_bytes = detect_mod.s3_get_bytes(s3, BUCKET, blob_key)
@@ -48,7 +48,7 @@ def run_pipeline_with_minio(s3):
     raw_key = f"{PREFIX}/raw_outputs.npy"
     buf = io.BytesIO()
     np.save(buf, raw)
-    detect_mod.s3_put_bytes(s3, BUCKET, raw_key, buf.getvalue())
+    detect_mod.s3_put_bytes(s3, BUCKET, raw_key, buf.getvalue(), content_type="application/octet-stream")
     
     # POSTPROCESS
     meta_bytes = post_mod.s3_get_bytes(s3, BUCKET, meta_key)

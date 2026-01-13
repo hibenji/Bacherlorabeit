@@ -93,7 +93,12 @@ def main():
         current_time = time.time() - start_time
         
         with PerformanceMonitor() as mon:
-            _ = run_pipeline(original_img)
+            # Bild laden (IO messen)
+            img = cv2.imread(IMAGE_PATH)
+            if img is None:
+                print(f"Fehler: Bild konnte nicht geladen werden.")
+                break
+            _ = run_pipeline(img)
         
         latencies.append(mon.get_duration())
         cpu_times.append(mon.get_cpu_time())

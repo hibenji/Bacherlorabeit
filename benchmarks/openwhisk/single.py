@@ -120,7 +120,7 @@ def save_results(client_latency, server_metrics, detections_count):
     result = {
         "timestamp": datetime.now().isoformat(),
         "benchmark_type": "openwhisk",
-        "client_latency_ms": client_latency,
+        "latency_ms": client_latency,
         "server_duration_ms": server_metrics.get("server_duration_ms", 0) if server_metrics else 0,
         "memory_limit_mb": server_metrics.get("memory_limit_mb", 0) if server_metrics else 0,
         "activation_id": server_metrics.get("activation_id", "") if server_metrics else "",

@@ -27,23 +27,23 @@ BATCH_SIZE = 50
 ITERATIONS = 30
 RESULTS_FILE = current_dir + "/results_batch.json"
 
-def run_pipeline_with_minio(s3):
+def run_pipeline_with_minio(s3, job_prefix):
     img_bytes = resize_mod.s3_get_bytes(s3, BUCKET, IMAGE_KEY)
     img = cv2.imdecode(np.frombuffer(img_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
     img_h, img_w, blob = resize_mod.preprocess_image(img)
     
-    blob_key, meta_key = f"{PREFIX}/blob.npy", f"{PREFIX}/meta.json"
+    blob_key, meta_key = f"{job_prefix}/blob.npy", f"{job_prefix}/meta.json"
     np_bytes = io.BytesIO()
     np.save(np_bytes, blob)
-    resize_mod.s3_put_bytes(s3, BUCKET, blob_key, np_bytes.getvalue())
-    resize_mod.s3_put_bytes(s3, BUCKET, meta_key, json.dumps({"img_h": img_h, "img_w": img_w, "imageKey": IMAGE_KEY}).encode())
+    resize_mod.s3_put_bytes(s3, BUCKET, blob_key, np_bytes.getvalue(), content_type="application/octet-stream")
+    resize_mod.s3_put_bytes(s3, BUCKET, meta_key, json.dumps({"img_h": img_h, "img_w": img_w, "imageKey": IMAGE_KEY}).encode(), content_type="application/json")
     
     blob = np.load(io.BytesIO(detect_mod.s3_get_bytes(s3, BUCKET, blob_key)), allow_pickle=False).astype(np.float32)
     raw = detect_mod.session.run(detect_mod.output_names, {detect_mod.input_name: blob})[0]
-    raw_key = f"{PREFIX}/raw_outputs.npy"
+    raw_key = f"{job_prefix}/raw_outputs.npy"
     buf = io.BytesIO()
     np.save(buf, raw)
-    detect_mod.s3_put_bytes(s3, BUCKET, raw_key, buf.getvalue())
+    detect_mod.s3_put_bytes(s3, BUCKET, raw_key, buf.getvalue(), content_type="application/octet-stream")
     
     meta = json.loads(post_mod.s3_get_bytes(s3, BUCKET, meta_key).decode())
     detections = np.load(io.BytesIO(post_mod.s3_get_bytes(s3, BUCKET, raw_key)), allow_pickle=False)
@@ -51,8 +51,13 @@ def run_pipeline_with_minio(s3):
     return post_mod.postprocess(orig_img, meta["img_h"], meta["img_w"], detections)
 
 def process_single_request(s3, request_id):
+    import uuid
+    job_id = str(uuid.uuid4())
+    job_prefix = f"{PREFIX}/{job_id}"
+    
     with PerformanceMonitor() as mon:
-        run_pipeline_with_minio(s3)
+        run_pipeline_with_minio(s3, job_prefix)
+    
     return {'request_id': request_id, 'latency': mon.get_duration(), 'cpu_time': mon.get_cpu_time(), 'memory': mon.get_memory()}
 
 def run_batch(s3, batch_size):
@@ -94,7 +99,7 @@ def main():
 
     print(f"Starte local_minio_import Batch-Benchmark ({ITERATIONS} Batches à {BATCH_SIZE} Requests)...")
     print("Warming up...")
-    run_pipeline_with_minio(s3)
+    run_pipeline_with_minio(s3, f"{PREFIX}/warmup")
 
     for batch_num in range(ITERATIONS):
         print(f"\n=== Batch {batch_num+1}/{ITERATIONS} ===")

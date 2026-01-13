@@ -69,12 +69,16 @@ def main():
         print(f"Fehler: Bild {IMAGE_PATH} nicht gefunden.")
         return
 
-    # Bild einmal laden (IO nicht messen)
-    original_img = cv2.imread(IMAGE_PATH)
-
     print(f"Starte lokale Benchmark (1 Durchlauf)...")
+    print(f"Bild: {IMAGE_PATH}")
 
     with PerformanceMonitor() as mon:
+        # Bild laden (IO messen für Vergleichbarkeit)
+        original_img = cv2.imread(IMAGE_PATH)
+        if original_img is None:
+            print(f"Fehler: Bild konnte nicht geladen werden.")
+            return
+            
         detections = run_pipeline(original_img)
     
     latency = mon.get_duration()

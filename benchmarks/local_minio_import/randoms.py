@@ -38,15 +38,15 @@ def run_pipeline_with_minio(s3):
     blob_key, meta_key = f"{PREFIX}/blob.npy", f"{PREFIX}/meta.json"
     np_bytes = io.BytesIO()
     np.save(np_bytes, blob)
-    resize_mod.s3_put_bytes(s3, BUCKET, blob_key, np_bytes.getvalue())
-    resize_mod.s3_put_bytes(s3, BUCKET, meta_key, json.dumps({"img_h": img_h, "img_w": img_w, "imageKey": IMAGE_KEY}).encode())
+    resize_mod.s3_put_bytes(s3, BUCKET, blob_key, np_bytes.getvalue(), content_type="application/octet-stream")
+    resize_mod.s3_put_bytes(s3, BUCKET, meta_key, json.dumps({"img_h": img_h, "img_w": img_w, "imageKey": IMAGE_KEY}).encode(), content_type="application/json")
     
     blob = np.load(io.BytesIO(detect_mod.s3_get_bytes(s3, BUCKET, blob_key)), allow_pickle=False).astype(np.float32)
     raw = detect_mod.session.run(detect_mod.output_names, {detect_mod.input_name: blob})[0]
     raw_key = f"{PREFIX}/raw_outputs.npy"
     buf = io.BytesIO()
     np.save(buf, raw)
-    detect_mod.s3_put_bytes(s3, BUCKET, raw_key, buf.getvalue())
+    detect_mod.s3_put_bytes(s3, BUCKET, raw_key, buf.getvalue(), content_type="application/octet-stream")
     
     meta = json.loads(post_mod.s3_get_bytes(s3, BUCKET, meta_key).decode())
     detections = np.load(io.BytesIO(post_mod.s3_get_bytes(s3, BUCKET, raw_key)), allow_pickle=False)

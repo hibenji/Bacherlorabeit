@@ -34,8 +34,11 @@ def run_pipeline(img):
     results = post_mod.postprocess(img_copy, h, w, detections)
     return results
 
-def process_single_request(img, request_id):
+def process_single_request(image_path, request_id):
     with PerformanceMonitor() as mon:
+        img = cv2.imread(image_path)
+        if img is None:
+             return {'request_id': request_id, 'error': 'Disk IO failed'}
         result = run_pipeline(img)
     return {
         'request_id': request_id,
@@ -44,10 +47,10 @@ def process_single_request(img, request_id):
         'memory': mon.get_memory(),
     }
 
-def run_batch(img, batch_size):
+def run_batch(image_path, batch_size):
     results = []
     with ThreadPoolExecutor(max_workers=batch_size) as executor:
-        futures = [executor.submit(process_single_request, img, i) for i in range(batch_size)]
+        futures = [executor.submit(process_single_request, image_path, i) for i in range(batch_size)]
         for future in as_completed(futures):
             results.append(future.result())
     return results
@@ -96,18 +99,22 @@ def main():
     print(f"Starte lokale Batch-Benchmark ({ITERATIONS} Batches à {BATCH_SIZE} Requests)...")
 
     print("Warming up...")
-    run_pipeline(original_img)
+    warmup_img = cv2.imread(IMAGE_PATH)
+    if warmup_img is not None:
+        run_pipeline(warmup_img)
 
     for batch_num in range(ITERATIONS):
         print(f"\n=== Batch {batch_num+1}/{ITERATIONS} ===")
         
         with PerformanceMonitor() as batch_mon:
-            batch_results = run_batch(original_img, BATCH_SIZE)
+            batch_results = run_batch(IMAGE_PATH, BATCH_SIZE)
         
         batch_duration = batch_mon.get_duration()
         batch_latencies.append(batch_duration)
         
         for result in batch_results:
+            if 'error' in result:
+                continue
             all_latencies.append(result['latency'])
             all_cpu_times.append(result['cpu_time'])
             all_memories.append(result['memory'])
