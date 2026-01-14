@@ -15,7 +15,7 @@ from metrics import PerformanceMonitor, print_stats
 RESIZE_SCRIPT = os.path.join(pipeline_dir, 'resize.py')
 DETECT_SCRIPT = os.path.join(pipeline_dir, 'detect.py')
 POSTPROCESS_SCRIPT = os.path.join(pipeline_dir, 'postprocess.py')
-BATCH_SIZE = 5
+BATCH_SIZE = 3
 ITERATIONS = 10
 RESULTS_FILE = current_dir + "/results_batch.json"
 

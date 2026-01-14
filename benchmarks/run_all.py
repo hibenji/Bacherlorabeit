@@ -7,6 +7,9 @@ import time
 # Number of times to run EACH script
 ITERATIONS = 20
 
+# Wait time between OpenWhisk single.py invocations for cold starts (12 minutes)
+OPENWHISK_COLD_START_WAIT_SECONDS = 720
+
 # Configurations to test
 CONFIGS = ["openwhisk"]
 
@@ -59,6 +62,14 @@ def main():
         for benchmark in BENCHMARKS:
             for config in CONFIGS:
                 for i in range(1, ITERATIONS + 1):
+                    # For OpenWhisk single.py, wait 12 minutes between invocations for cold starts
+                    if config == "openwhisk" and benchmark == "single.py" and i > 1:
+                        print(f"\n*** Waiting {OPENWHISK_COLD_START_WAIT_SECONDS // 60} minutes for OpenWhisk container to become cold... ***")
+                        for remaining in range(OPENWHISK_COLD_START_WAIT_SECONDS, 0, -60):
+                            print(f"  Time remaining: {remaining // 60} minute(s)...")
+                            time.sleep(min(60, remaining))
+                        print("Wait complete. Invoking function (should be cold start)...")
+                    
                     run_benchmark(config, benchmark, i)
     except KeyboardInterrupt:
         print("\nSuite aborted.")

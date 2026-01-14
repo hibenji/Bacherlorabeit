@@ -23,8 +23,8 @@ from metrics import PerformanceMonitor, print_stats
 BUCKET = "imgreco"
 PREFIX = "benchmark_tmp"
 IMAGE_KEY = "input/test.jpg"
-BATCH_SIZE = 50
-ITERATIONS = 30
+BATCH_SIZE = 3
+ITERATIONS = 10
 RESULTS_FILE = current_dir + "/results_batch.json"
 
 def run_pipeline_with_minio(s3, job_prefix):
