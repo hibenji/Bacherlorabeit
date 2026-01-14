@@ -16,12 +16,14 @@ BENCHMARKS = {
 TEST_TYPES = ["single", "stream", "batch", "random"]
 
 def get_latency(data):
-    if "server_duration_ms" in data and data["server_duration_ms"] > 0:
-        return data["server_duration_ms"]
+    if "latency_ms" in data:
+        return data["latency_ms"]
     elif "client_latency_ms" in data:
         return data["client_latency_ms"]
     elif "latency_avg_ms" in data:
         return data["latency_avg_ms"]
+    elif "server_duration_ms" in data and data["server_duration_ms"] > 0:
+        return data["server_duration_ms"]
     return data.get("latency_ms", 0)
 
 def get_cpu_time(data):
